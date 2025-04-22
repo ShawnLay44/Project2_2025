@@ -8,31 +8,37 @@ from email.message import EmailMessage
 
 from datetime import datetime
 
+
+
+# GPIO 设定
+
 sensor_pin = 4
 
 GPIO.setmode(GPIO.BCM)
 
 GPIO.setup(sensor_pin, GPIO.IN)
 
-# email
+
+
+# email infomation
+
 from_email_addr = "1612830974@qq.com"
 
-from_email_pass = "kipqviqwrhzwcjbb"  
+from_email_pass = "kipqviqwrhzwcjbb"
 
 to_email_addr = "1956286306@qq.com"
 
 
 
-# time of detection
-schedule_times = ["08:00", "12:00", "16:00", "20:00"]
+# the time for checking
 
+target_times = ["8:00","12:00","16:00","20:00"]
 
-
-# send email
+triggered_today = set()  
 
 def send_email(subject, body):
 
-    msg=EmailMessage()
+    msg = EmailMessage()
 
     msg.set_content(body)
 
@@ -42,66 +48,77 @@ def send_email(subject, body):
 
     msg['Subject'] = subject
 
+    try:
 
+        server = smtplib.SMTP('smtp.qq.com', 587)
 
-try:
-    server = smtplib.SMTP('smtp.qq.com', 587)
+        server.starttls()
 
-    server.starttls()
+        server.login(from_email_addr, from_email_pass)
 
-    server.login(from_email_addr, from_email_pass)
+        server.send_message(msg)
 
-    server.send_message(msg)
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] email has been sent：{subject}")
 
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] email has been sent to ：{subject}")
+    except Exception as e:
 
-except Exception as e:
-	print("fail to send email：", e)
+        print("fail to send the email：", e)
 
-finally:
+    finally:
 
         server.quit()
 
 def get_moisture_status():
 
-    if GPIO.input(sensor_pin):  # no water 1
+    if GPIO.input(sensor_pin):
 
-        return "need water！", True
+        return "it is dry！please water it", True
 
     else:
 
-        return "we don't need water", False
-
-# main loop
-
-print(" checking for the plants")
+        return "no need for watering。", False
 
 
+
+print(" SoilSensorEmail detecting...")
 
 try:
 
     while True:
 
-        current_time = datetime.now().strftime("%H:%M")
+        now = datetime.now()
 
-        if current_time in schedule_times:
+        current_time_str = now.strftime("%H:%M")
 
-            message, needs_water = get_moisture_status()
 
-            email_subject = " warning to water plants"
+      
+        for target in target_times:
 
-            email_body = f"time：{current_time}\condition：{message}"
+   	     if target not in triggered_today and current_time_str == target:
 
-            send_email(email_subject, email_body)
-	    
-            time.sleep(61)  # wait for one minute
-        else:
-            time.sleep(10)
+                message, _ = get_moisture_status()
+
+                subject = "warning for watering"
+
+                body = f"time：{current_time_str}\ncondition：{message}"
+
+                send_email(subject, body)
+
+                triggered_today.add(target)
+
+
+
+        if now.strftime("%H:%M") == "00:00":
+
+            triggered_today.clear()
+
+        time.sleep(10)  # detect every 10 seconds
 
 except KeyboardInterrupt:
 
     GPIO.cleanup()
 
-    print(" system out")
+    print("system out")
+
 
 
